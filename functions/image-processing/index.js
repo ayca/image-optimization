@@ -59,8 +59,11 @@ exports.handler = async (event) => {
             resizingOptions.width = parseInt(operationsJSON['width']);
         if (operationsJSON['height']) 
             resizingOptions.height = parseInt(operationsJSON['height']);
-        if (operationsJSON['height'] || operationsJSON['width'])
-            resizingOptions.kernel = 'cubic';
+        if (operationsJSON['height'] || operationsJSON['width']) {
+            resizingOptions.kernel = 'mitchell';
+            resizingOptions.quality = 100;
+            resizingOptions.fastShrinkOnLoad = true;
+        }
         if (resizingOptions) 
             transformedImage = transformedImage.resize(resizingOptions);
         // check if rotation is needed
@@ -84,7 +87,7 @@ exports.handler = async (event) => {
                 });
             } else transformedImage = transformedImage.toFormat(operationsJSON['format']);
         }
-        transformedImage = await transformedImage.toBuffer({ quality: 100 });
+        transformedImage = await transformedImage.toBuffer({ options: { quality: 100 }});
     } catch (error) {
         return sendError(500, 'error transforming image', error);
     }
