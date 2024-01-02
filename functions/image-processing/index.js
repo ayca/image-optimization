@@ -22,7 +22,7 @@ exports.handler = async (event) => {
     // An example of expected path is /images/rio/1.jpeg/format=auto,width=100 or /images/rio/1.jpeg/original where /images/rio/1.jpeg is the path of the original image
     var imagePathArray = event.requestContext.http.path.split('/');
     // get the requested image operations
-    var operationsPrefix = imagePathArray.pop();
+    var operationsPrefix = imagePathArray.pop().split('?').pop();
     // get the original image path images/rio/1.jpg
     imagePathArray.shift();
     var originalImagePath = imagePathArray.join('/');
