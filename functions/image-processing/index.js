@@ -52,7 +52,8 @@ exports.handler = async (event) => {
     const operationsJSON = Object.fromEntries(operationsPrefix.split(',').map(operation => operation.split('=')));
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
-    if (operationsJSON.length > 0) {
+    let operationsCount = operationsPrefix.split(',').length;
+    if (operationsCount > 0) {
         try {
             // check if resizing is requested
             var resizingOptions = {};
