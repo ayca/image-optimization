@@ -22,7 +22,7 @@ exports.handler = async (event) => {
     // An example of expected path is /images/rio/1.jpeg/format=auto,width=100 or /images/rio/1.jpeg/original where /images/rio/1.jpeg is the path of the original image
     var imagePathArray = event.requestContext.http.path.split('/');
     // get the requested image operations
-    var operationsPrefix = imagePathArray.pop().split('?').pop();
+    var operationsPrefix = imagePathArray.pop();
     // get the original image path images/rio/1.jpg
     imagePathArray.shift();
     var originalImagePath = imagePathArray.join('/');
@@ -52,8 +52,6 @@ exports.handler = async (event) => {
     const operationsJSON = Object.fromEntries(operationsPrefix.split(',').map(operation => operation.split('=')));
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
-    let operationsCount = operationsPrefix.split(',').length;
-    if (operationsCount > 0) {
         try {
             // check if resizing is requested
             var resizingOptions = {};
@@ -93,10 +91,6 @@ exports.handler = async (event) => {
         } catch (error) {
             return sendError(500, 'error transforming image', error);
         }
-    }
-    else {
-        transformedImage = originalImage.Body;
-    }
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
     // upload transformed image back to S3 if required in the architecture
