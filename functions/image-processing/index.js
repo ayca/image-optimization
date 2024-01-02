@@ -34,9 +34,16 @@ exports.handler = async (event) => {
         originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: originalImagePath }).promise();
         contentType = originalImage.ContentType;
     } catch (error) {
-        return sendError(500, 'error downloading original image', error);
+        console.log('error downloading original image ' + originalImagePath);
+        // get "image not found" image if product url
+        if (originalImagePath.includes('product/')) {
+            originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: 'odak-msc/no-img.gif' }).promise();
+        }
+        else {
+            return sendError(500, 'error downloading original image', error);
+        }
     }
-    let transformedImage = Sharp(originalImage.Body, { failOn: 'none', animated: true });
+    let transformedImage = Sharp(originalImage.Body, { failOn: 'none', animated: false, quality: 100 });
     // Get image orientation to rotate if needed
     const imageMetadata = await transformedImage.metadata();
     //  execute the requested operations 
@@ -46,9 +53,14 @@ exports.handler = async (event) => {
     try {
         // check if resizing is requested
         var resizingOptions = {};
-        if (operationsJSON['width']) resizingOptions.width = parseInt(operationsJSON['width']);
-        if (operationsJSON['height']) resizingOptions.height = parseInt(operationsJSON['height']);
-        if (resizingOptions) transformedImage = transformedImage.resize(resizingOptions);
+        if (operationsJSON['width']) 
+            resizingOptions.width = parseInt(operationsJSON['width']);
+        if (operationsJSON['height']) 
+            resizingOptions.height = parseInt(operationsJSON['height']);
+        if (operationsJSON['height'] || operationsJSON['width'])
+            resizingOptions.kernel = 'cubic';
+        if (resizingOptions) 
+            transformedImage = transformedImage.resize(resizingOptions);
         // check if rotation is needed
         if (imageMetadata.orientation) transformedImage = transformedImage.rotate();
         // check if formatting is requested
@@ -62,6 +74,7 @@ exports.handler = async (event) => {
                 case 'avif': contentType = 'image/avif'; isLossy = true; break;
                 default: contentType = 'image/jpeg'; isLossy = true;
             }
+            isLossy = false;
             if (operationsJSON['quality'] && isLossy) {
                 transformedImage = transformedImage.toFormat(operationsJSON['format'], {
                     quality: parseInt(operationsJSON['quality']),
