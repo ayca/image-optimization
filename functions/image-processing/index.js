@@ -52,44 +52,49 @@ exports.handler = async (event) => {
     const operationsJSON = Object.fromEntries(operationsPrefix.split(',').map(operation => operation.split('=')));
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
-    try {
-        // check if resizing is requested
-        var resizingOptions = {};
-        if (operationsJSON['width']) 
-            resizingOptions.width = parseInt(operationsJSON['width']);
-        if (operationsJSON['height']) 
-            resizingOptions.height = parseInt(operationsJSON['height']);
-        if (operationsJSON['height'] || operationsJSON['width']) {
-            resizingOptions.kernel = 'mitchell';
-            resizingOptions.quality = 100;
-            resizingOptions.fastShrinkOnLoad = true;
-        }
-        if (resizingOptions) 
-            transformedImage = transformedImage.resize(resizingOptions);
-        // check if rotation is needed
-        if (imageMetadata.orientation) 
-            transformedImage = transformedImage.rotate();
-        // check if formatting is requested
-        if (operationsJSON['format']) {
-            var isLossy = false;
-            switch (operationsJSON['format']) {
-                case 'jpeg': contentType = 'image/jpeg'; isLossy = true; break;
-                case 'gif': contentType = 'image/gif'; break;
-                case 'webp': contentType = 'image/webp'; isLossy = true; break;
-                case 'png': contentType = 'image/png'; break;
-                case 'avif': contentType = 'image/avif'; isLossy = true; break;
-                default: contentType = 'image/jpeg'; isLossy = true;
+    if (operationsJSON.length > 0) {
+        try {
+            // check if resizing is requested
+            var resizingOptions = {};
+            if (operationsJSON['width']) 
+                resizingOptions.width = parseInt(operationsJSON['width']);
+            if (operationsJSON['height']) 
+                resizingOptions.height = parseInt(operationsJSON['height']);
+            if (operationsJSON['height'] || operationsJSON['width']) {
+                resizingOptions.kernel = 'mitchell';
+                resizingOptions.quality = 100;
+                resizingOptions.fastShrinkOnLoad = true;
             }
-            isLossy = false;
-            if (operationsJSON['quality'] && isLossy) {
-                transformedImage = transformedImage.toFormat(operationsJSON['format'], {
-                    quality: parseInt(operationsJSON['quality']),
-                });
-            } else transformedImage = transformedImage.toFormat(operationsJSON['format']);
+            if (resizingOptions) 
+                transformedImage = transformedImage.resize(resizingOptions);
+            // check if rotation is needed
+            if (imageMetadata.orientation) 
+                transformedImage = transformedImage.rotate();
+            // check if formatting is requested
+            if (operationsJSON['format']) {
+                var isLossy = false;
+                switch (operationsJSON['format']) {
+                    case 'jpeg': contentType = 'image/jpeg'; isLossy = true; break;
+                    case 'gif': contentType = 'image/gif'; break;
+                    case 'webp': contentType = 'image/webp'; isLossy = true; break;
+                    case 'png': contentType = 'image/png'; break;
+                    case 'avif': contentType = 'image/avif'; isLossy = true; break;
+                    default: contentType = 'image/jpeg'; isLossy = true;
+                }
+                isLossy = false;
+                if (operationsJSON['quality'] && isLossy) {
+                    transformedImage = transformedImage.toFormat(operationsJSON['format'], {
+                        quality: parseInt(operationsJSON['quality']),
+                    });
+                } else transformedImage = transformedImage.toFormat(operationsJSON['format']);
+            }
+            transformedImage = await transformedImage.toBuffer();
+        } catch (error) {
+            return sendError(500, 'error transforming image', error);
         }
-        transformedImage = await transformedImage.toBuffer();
-    } catch (error) {
-        return sendError(500, 'error transforming image', error);
+    }
+    else {
+        transformedImage = originalImage.Body;
     }
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
