@@ -53,6 +53,25 @@ exports.handler = async (event) => {
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
     try {
+        // check if formatting is requested
+        if (operationsJSON['format']) {
+            var isLossy = false;
+            switch (operationsJSON['format']) {
+                case 'jpeg': contentType = 'image/jpeg'; isLossy = true; break;
+                case 'gif': contentType = 'image/gif'; break;
+                case 'webp': contentType = 'image/webp'; isLossy = true; break;
+                case 'png': contentType = 'image/png'; break;
+                case 'avif': contentType = 'image/avif'; isLossy = true; break;
+                default: contentType = 'image/jpeg'; isLossy = true;
+            }
+            if (operationsJSON['quality'] && isLossy) {
+                transformedImage = transformedImage.toFormat(operationsJSON['format'], {
+                    quality: parseInt(operationsJSON['quality']),
+                });
+            } else transformedImage = transformedImage.toFormat(operationsJSON['format'], {
+                    quality: 100,
+                });
+        }
         // check if resizing is requested
         var resizingOptions = {};
         if (operationsJSON['width']) 
@@ -69,24 +88,6 @@ exports.handler = async (event) => {
         // check if rotation is needed
         if (imageMetadata.orientation) 
             transformedImage = transformedImage.rotate();
-        // check if formatting is requested
-        if (operationsJSON['format']) {
-            var isLossy = false;
-            switch (operationsJSON['format']) {
-                case 'jpeg': contentType = 'image/jpeg'; isLossy = true; break;
-                case 'gif': contentType = 'image/gif'; break;
-                case 'webp': contentType = 'image/webp'; isLossy = true; break;
-                case 'png': contentType = 'image/png'; break;
-                case 'avif': contentType = 'image/avif'; isLossy = true; break;
-                default: contentType = 'image/jpeg'; isLossy = true;
-            }
-            isLossy = false;
-            if (operationsJSON['quality'] && isLossy) {
-                transformedImage = transformedImage.toFormat(operationsJSON['format'], {
-                    quality: parseInt(operationsJSON['quality']),
-                });
-            } else transformedImage = transformedImage.toFormat(operationsJSON['format']);
-        }
         transformedImage = await transformedImage.toBuffer();
     } catch (error) {
         return sendError(500, 'error transforming image', error);
