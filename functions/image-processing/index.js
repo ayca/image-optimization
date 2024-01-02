@@ -14,9 +14,11 @@ const LOG_TIMING = process.env.logTiming;
 
 exports.handler = async (event) => {
     // First validate if the request is coming from CloudFront
-    if (!event.headers['x-origin-secret-header'] || !(event.headers['x-origin-secret-header'] === SECRET_KEY)) return sendError(403, 'Request unauthorized', event);
+    if (!event.headers['x-origin-secret-header'] || !(event.headers['x-origin-secret-header'] === SECRET_KEY)) 
+        return sendError(403, 'Request unauthorized', event);
     // Validate if this is a GET request
-    if (!event.requestContext || !event.requestContext.http || !(event.requestContext.http.method === 'GET')) return sendError(400, 'Only GET method is supported', event);
+    if (!event.requestContext || !event.requestContext.http || !(event.requestContext.http.method === 'GET')) 
+        return sendError(400, 'Only GET method is supported', event);
     // An example of expected path is /images/rio/1.jpeg/format=auto,width=100 or /images/rio/1.jpeg/original where /images/rio/1.jpeg is the path of the original image
     var imagePathArray = event.requestContext.http.path.split('/');
     // get the requested image operations
@@ -62,7 +64,8 @@ exports.handler = async (event) => {
         if (resizingOptions) 
             transformedImage = transformedImage.resize(resizingOptions);
         // check if rotation is needed
-        if (imageMetadata.orientation) transformedImage = transformedImage.rotate();
+        if (imageMetadata.orientation) 
+            transformedImage = transformedImage.rotate();
         // check if formatting is requested
         if (operationsJSON['format']) {
             var isLossy = false;
@@ -81,7 +84,7 @@ exports.handler = async (event) => {
                 });
             } else transformedImage = transformedImage.toFormat(operationsJSON['format']);
         }
-        transformedImage = await transformedImage.toBuffer();
+        transformedImage = await transformedImage.toBuffer({ quality: 100 });
     } catch (error) {
         return sendError(500, 'error transforming image', error);
     }
