@@ -87,7 +87,7 @@ exports.handler = async (event) => {
                 });
             } else transformedImage = transformedImage.toFormat(operationsJSON['format']);
         }
-        transformedImage = await transformedImage.toBuffer({ options: { quality: 100 }});
+        transformedImage = await transformedImage.toBuffer();
     } catch (error) {
         return sendError(500, 'error transforming image', error);
     }
