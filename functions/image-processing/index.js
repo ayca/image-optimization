@@ -41,7 +41,7 @@ exports.handler = async (event) => {
         // get "image not found" image if product url
         if (originalImagePath.includes('product/')) {
             originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: 'odak-msc/no-img.gif' }).promise();
-            contentType = originalImage.ContentType;
+            contentType = 'image/gif';
             imgExists = false;
         }
         else {
