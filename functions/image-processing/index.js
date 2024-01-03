@@ -92,15 +92,15 @@ exports.handler = async (event) => {
             // check if rotation is needed
             if (imageMetadata.orientation) 
                 transformedImage = transformedImage.rotate();
+            transformedImage = await transformedImage.toBuffer();
         }
-        transformedImage = await transformedImage.toBuffer();
     } catch (error) {
         return sendError(500, 'error transforming image', error);
     }
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
     // upload transformed image back to S3 if required in the architecture
-    if (S3_TRANSFORMED_IMAGE_BUCKET) {
+    if (S3_TRANSFORMED_IMAGE_BUCKET && imgExists) {
         try {
             await S3.putObject({
                 Body: transformedImage,
@@ -117,16 +117,28 @@ exports.handler = async (event) => {
     }
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     if (LOG_TIMING === 'true') console.log(timingLog);
-    // return transformed image
-    return {
-        statusCode: 200,
-        body: transformedImage.toString('base64'),
-        isBase64Encoded: true,
-        headers: {
-            'Content-Type': contentType,
-            'Cache-Control': TRANSFORMED_IMAGE_CACHE_TTL
-        }
-    };
+    if (imgExists)
+        // return transformed image
+        return {
+            statusCode: 200,
+            body: transformedImage.toString('base64'),
+            isBase64Encoded: true,
+            headers: {
+                'Content-Type': contentType,
+                'Cache-Control': TRANSFORMED_IMAGE_CACHE_TTL
+            }
+        };
+    else
+        // return transformed image
+        return {
+            statusCode: 200,
+            body: originalImage.Body.toString('base64'),
+            isBase64Encoded: true,
+            headers: {
+                'Content-Type': contentType,
+                'Cache-Control': TRANSFORMED_IMAGE_CACHE_TTL
+            }
+        };
 };
 
 function sendError(statusCode, body, error) {
