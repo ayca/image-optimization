@@ -32,6 +32,7 @@ exports.handler = async (event) => {
     // Downloading original image
     let originalImage;
     let contentType;
+    let imgExists = true;
     try {
         originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: originalImagePath }).promise();
         contentType = originalImage.ContentType;
@@ -40,6 +41,7 @@ exports.handler = async (event) => {
         // get "image not found" image if product url
         if (originalImagePath.includes('product/')) {
             originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: 'odak-msc/no-img.gif' }).promise();
+            imgExists = false;
         }
         else {
             return sendError(500, 'error downloading original image', error);
@@ -54,7 +56,7 @@ exports.handler = async (event) => {
     startTime = performance.now();
     try {
         // check if formatting is requested
-        if (operationsJSON['format']) {
+        if (operationsJSON['format'] && imgExists) {
             var isLossy = false;
             switch (operationsJSON['format']) {
                 case 'jpeg': contentType = 'image/jpeg'; isLossy = true; break;
@@ -79,7 +81,7 @@ exports.handler = async (event) => {
         if (operationsJSON['height']) 
             resizingOptions.height = parseInt(operationsJSON['height']);
         if (operationsJSON['height'] || operationsJSON['width']) {
-            resizingOptions.kernel = 'mitchell';
+            resizingOptions.kernel = 'cubic';
             resizingOptions.quality = 100;
             resizingOptions.fastShrinkOnLoad = true;
         }
