@@ -41,6 +41,7 @@ exports.handler = async (event) => {
         // get "image not found" image if product url
         if (originalImagePath.includes('product/')) {
             originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: 'odak-msc/no-img.gif' }).promise();
+            contentType = originalImage.ContentType;
             imgExists = false;
         }
         else {
@@ -55,41 +56,43 @@ exports.handler = async (event) => {
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
     try {
-        // check if formatting is requested
-        if (operationsJSON['format'] && imgExists) {
-            var isLossy = false;
-            switch (operationsJSON['format']) {
-                case 'jpeg': contentType = 'image/jpeg'; isLossy = true; break;
-                case 'gif': contentType = 'image/gif'; break;
-                case 'webp': contentType = 'image/webp'; isLossy = true; break;
-                case 'png': contentType = 'image/png'; break;
-                case 'avif': contentType = 'image/avif'; isLossy = true; break;
-                default: contentType = 'image/jpeg'; isLossy = true;
+        if (imgExists) {
+            // check if formatting is requested
+            if (operationsJSON['format']) {
+                var isLossy = false;
+                switch (operationsJSON['format']) {
+                    case 'jpeg': contentType = 'image/jpeg'; isLossy = true; break;
+                    case 'gif': contentType = 'image/gif'; break;
+                    case 'webp': contentType = 'image/webp'; isLossy = true; break;
+                    case 'png': contentType = 'image/png'; break;
+                    case 'avif': contentType = 'image/avif'; isLossy = true; break;
+                    default: contentType = 'image/jpeg'; isLossy = true;
+                }
+                if (operationsJSON['quality'] && isLossy) {
+                    transformedImage = transformedImage.toFormat(operationsJSON['format'], {
+                        quality: parseInt(operationsJSON['quality']),
+                    });
+                } else transformedImage = transformedImage.toFormat(operationsJSON['format'], {
+                        quality: 100,
+                    });
             }
-            if (operationsJSON['quality'] && isLossy) {
-                transformedImage = transformedImage.toFormat(operationsJSON['format'], {
-                    quality: parseInt(operationsJSON['quality']),
-                });
-            } else transformedImage = transformedImage.toFormat(operationsJSON['format'], {
-                    quality: 100,
-                });
+            // check if resizing is requested
+            var resizingOptions = {};
+            if (operationsJSON['width']) 
+                resizingOptions.width = parseInt(operationsJSON['width']);
+            if (operationsJSON['height']) 
+                resizingOptions.height = parseInt(operationsJSON['height']);
+            if (operationsJSON['height'] || operationsJSON['width']) {
+                resizingOptions.kernel = 'cubic';
+                resizingOptions.quality = 100;
+                resizingOptions.fastShrinkOnLoad = true;
+            }
+            if (resizingOptions) 
+                transformedImage = transformedImage.resize(resizingOptions);
+            // check if rotation is needed
+            if (imageMetadata.orientation) 
+                transformedImage = transformedImage.rotate();
         }
-        // check if resizing is requested
-        var resizingOptions = {};
-        if (operationsJSON['width']) 
-            resizingOptions.width = parseInt(operationsJSON['width']);
-        if (operationsJSON['height']) 
-            resizingOptions.height = parseInt(operationsJSON['height']);
-        if (operationsJSON['height'] || operationsJSON['width']) {
-            resizingOptions.kernel = 'cubic';
-            resizingOptions.quality = 100;
-            resizingOptions.fastShrinkOnLoad = true;
-        }
-        if (resizingOptions) 
-            transformedImage = transformedImage.resize(resizingOptions);
-        // check if rotation is needed
-        if (imageMetadata.orientation) 
-            transformedImage = transformedImage.rotate();
         transformedImage = await transformedImage.toBuffer();
     } catch (error) {
         return sendError(500, 'error transforming image', error);
