@@ -56,7 +56,7 @@ function handler(event) {
                 case 'p':
                     if (request.querystring[operation]['value']) {
                         var placeholder = request.querystring[operation]['value'].toLowerCase()
-                        if (!isNaN(quality)) {
+                        if (!isNaN(placeholder)) {
                             normalizedOperations['p'] = placeholder;
                         }
                     }
