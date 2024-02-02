@@ -23,6 +23,9 @@ exports.handler = async (event) => {
     var imagePathArray = event.requestContext.http.path.split('/');
     // get the requested image operations
     var operationsPrefix = imagePathArray.pop();
+    // get the original image path images/rio/1.jpg
+    imagePathArray.shift();
+    var originalImagePath = imagePathArray.join('/');
     //get if optimized version exists
     try {
         originalImage = await S3.getObject({
@@ -42,9 +45,6 @@ exports.handler = async (event) => {
     } catch (error) {
         console.log('optimized image not found ' + originalImagePath + '/' + operationsPrefix);
     }
-    // get the original image path images/rio/1.jpg
-    imagePathArray.shift();
-    var originalImagePath = imagePathArray.join('/');
     // timing variable
     var timingLog = "perf ";
     var startTime = performance.now();
