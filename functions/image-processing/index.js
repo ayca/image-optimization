@@ -55,6 +55,9 @@ exports.handler = async (event) => {
     const operationsJSON = Object.fromEntries(operationsPrefix.split(',').map(operation => operation.split('=')));
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
+    if (operationsJSON['p'] && operationsJSON['p'] == 'n' && imgExists == false) {
+        return sendError(404, 'Not Found', event);
+    }
     try {
         if (imgExists) {
             // check if formatting is requested
