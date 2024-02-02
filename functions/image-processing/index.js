@@ -75,6 +75,7 @@ exports.handler = async (event) => {
     timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
     startTime = performance.now();
     if (operationsJSON['p'] && operationsJSON['p'] == 'n' && imgExists == false) {
+        console.log('original image not found and no placeholder ' + originalImagePath + '/' + operationsPrefix);
         return sendError(404, 'Not Found', event);
     }
     try {
