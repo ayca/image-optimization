@@ -54,6 +54,7 @@ function handler(event) {
                     }
                     break;
                 case 'p':
+                    console.log('url-rewrite case p ' + request.querystring[operation]['value']);
                     if (request.querystring[operation]['value']) {
                         var placeholder = request.querystring[operation]['value'].toLowerCase()
                         if (!isNaN(placeholder)) {
