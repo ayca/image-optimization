@@ -54,12 +54,9 @@ function handler(event) {
                     }
                     break;
                 case 'p':
-                    console.log('url-rewrite case p ' + request.querystring[operation]['value']);
                     if (request.querystring[operation]['value']) {
-                        var placeholder = request.querystring[operation]['value'].toLowerCase()
-                        if (!isNaN(placeholder)) {
-                            normalizedOperations['p'] = placeholder;
-                        }
+                        var placeholder = request.querystring[operation]['value'].toLowerCase();
+                        normalizedOperations['placeholder'] = placeholder;
                     }
                     break;
                 default: break;
@@ -73,7 +70,7 @@ function handler(event) {
             if (normalizedOperations.quality) normalizedOperationsArray.push('quality='+normalizedOperations.quality);
             if (normalizedOperations.width) normalizedOperationsArray.push('width='+normalizedOperations.width);
             if (normalizedOperations.height) normalizedOperationsArray.push('height='+normalizedOperations.height);
-            if (normalizedOperations.p) normalizedOperationsArray.push('p='+normalizedOperations.p);
+            if (normalizedOperations.placeholder) normalizedOperationsArray.push('p='+normalizedOperations.placeholder);
             request.uri = originalImagePath + '/' + normalizedOperationsArray.join(',');     
         } else {
             // If no valid operation is found, flag the request with /original path suffix
