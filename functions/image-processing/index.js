@@ -1,21 +1,16 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-const AWS = require('aws-sdk');
-const https = require('https');
-const Sharp = require('sharp');
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import Sharp from 'sharp';
 
-const S3 = new AWS.S3({ signatureVersion: 'v4', httpOptions: { agent: new https.Agent({ keepAlive: true }) } });
+const s3Client = new S3Client();
 const S3_ORIGINAL_IMAGE_BUCKET = process.env.originalImageBucketName;
 const S3_TRANSFORMED_IMAGE_BUCKET = process.env.transformedImageBucketName;
 const TRANSFORMED_IMAGE_CACHE_TTL = process.env.transformedImageCacheTTL;
-const SECRET_KEY = process.env.secretKey;
-const LOG_TIMING = process.env.logTiming;
+const MAX_IMAGE_SIZE = parseInt(process.env.maxImageSize);
 
-exports.handler = async (event) => {
-    // First validate if the request is coming from CloudFront
-    if (!event.headers['x-origin-secret-header'] || !(event.headers['x-origin-secret-header'] === SECRET_KEY)) 
-        return sendError(403, 'Request unauthorized', event);
+export const handler = async (event) => {
     // Validate if this is a GET request
     if (!event.requestContext || !event.requestContext.http || !(event.requestContext.http.method === 'GET')) 
         return sendError(400, 'Only GET method is supported', event);
@@ -28,14 +23,16 @@ exports.handler = async (event) => {
     var originalImagePath = imagePathArray.join('/');
     //get if optimized version exists
     try {
-        originalImage = await S3.getObject({
-            Bucket: S3_TRANSFORMED_IMAGE_BUCKET,
-            Key: originalImagePath + '/' + operationsPrefix,
-        }).promise();
-        contentType = originalImage.ContentType;
+        const getCommand = new GetObjectCommand({ Bucket: S3_TRANSFORMED_IMAGE_BUCKET, Key: originalImagePath + '/' + operationsPrefix });
+        const getCommandOutput = await s3Client.send(getCommand);
+        console.log(`Got response from S3 for ${originalImagePath}`);
+
+        originalImageBody = getCommandOutput.Body.transformToByteArray();
+        contentType = getOriginalImageCommandOutput.ContentType;
+        
         return {
             statusCode: 200,
-            body: originalImage.Body.toString('base64'),
+            body: originalImageBody.toString('base64'),
             isBase64Encoded: true,
             headers: {
                 'Content-Type': contentType,
@@ -45,21 +42,26 @@ exports.handler = async (event) => {
     } catch (error) {
         console.log('optimized image not found ' + originalImagePath + '/' + operationsPrefix);
     }
-    // timing variable
-    var timingLog = "perf ";
+    
     var startTime = performance.now();
     // Downloading original image
-    let originalImage;
+    let originalImageBody;
     let contentType;
     let imgExists = true;
     try {
-        originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: originalImagePath }).promise();
-        contentType = originalImage.ContentType;
+        const getOriginalImageCommand = new GetObjectCommand({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: originalImagePath });
+        const getOriginalImageCommandOutput = await s3Client.send(getOriginalImageCommand);
+        console.log(`Got response from S3 for ${originalImagePath}`);
+
+        originalImageBody = getOriginalImageCommandOutput.Body.transformToByteArray();
+        contentType = getOriginalImageCommandOutput.ContentType;
     } catch (error) {
         console.log('error downloading original image ' + originalImagePath);
         // get "image not found" image if product url
         if (originalImagePath.includes('product/')) {
-            originalImage = await S3.getObject({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: 'odak-msc/no-img.gif' }).promise();
+	        const getOriginalImageCommand = new GetObjectCommand({ Bucket: S3_ORIGINAL_IMAGE_BUCKET, Key: 'odak-msc/no-img.gif' });
+	        const getOriginalImageCommandOutput = await s3Client.send(getOriginalImageCommand);
+	        originalImageBody = getOriginalImageCommandOutput.Body.transformToByteArray();
             contentType = 'image/gif';
             imgExists = false;
         }
@@ -67,12 +69,13 @@ exports.handler = async (event) => {
             return sendError(500, 'error downloading original image', error);
         }
     }
-    let transformedImage = Sharp(originalImage.Body, { failOn: 'none', animated: false, quality: 100 });
+    let transformedImage = Sharp(await originalImageBody, { failOn: 'none', animated: true, quality: 100 });
     // Get image orientation to rotate if needed
     const imageMetadata = await transformedImage.metadata();
     //  execute the requested operations 
     const operationsJSON = Object.fromEntries(operationsPrefix.split(',').map(operation => operation.split('=')));
-    timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
+    // variable holding the server timing header value
+    var timingLog = 'img-download;dur=' + parseInt(performance.now() - startTime);
     startTime = performance.now();
     if (operationsJSON['p'] && operationsJSON['p'] === 'n' && !imgExists) {
         console.log('original image not found and no placeholder ' + originalImagePath + '/' + operationsPrefix);
@@ -99,6 +102,7 @@ exports.handler = async (event) => {
                         quality: 100,
                     });
             }
+            
             // check if resizing is requested
             var resizingOptions = {};
             if (operationsJSON['width']) 
@@ -120,12 +124,18 @@ exports.handler = async (event) => {
     } catch (error) {
         return sendError(500, 'error transforming image', error);
     }
-    timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
+    timingLog = timingLog + ',img-transform;dur=' + parseInt(performance.now() - startTime);
+
+    // handle gracefully generated images bigger than a specified limit (e.g. Lambda output object limit)
+    const imageTooBig = Buffer.byteLength(transformedImage) > MAX_IMAGE_SIZE;
+
+    // upload transformed image back to S3 if required in the architecture
+
     startTime = performance.now();
     // upload transformed image back to S3 if required in the architecture
     if (S3_TRANSFORMED_IMAGE_BUCKET && imgExists) {
         try {
-            await S3.putObject({
+            const putImageCommand = new PutObjectCommand({
                 Body: transformedImage,
                 Bucket: S3_TRANSFORMED_IMAGE_BUCKET,
                 Key: originalImagePath + '/' + operationsPrefix,
@@ -133,13 +143,14 @@ exports.handler = async (event) => {
                 Metadata: {
                     'cache-control': TRANSFORMED_IMAGE_CACHE_TTL,
                 },
-            }).promise();
+            })
+            await s3Client.send(putImageCommand);
+            timingLog = timingLog + ',img-upload;dur=' + parseInt(performance.now() - startTime);
         } catch (error) {
-            sendError('APPLICATION ERROR', 'Could not upload transformed image to S3', error);
+            logError('Could not upload transformed image to S3', error);
         }
     }
-    timingLog = timingLog + parseInt(performance.now() - startTime) + ' ';
-    if (LOG_TIMING === 'true') console.log(timingLog);
+    
     if (imgExists)
         // return transformed image
         return {
@@ -148,7 +159,8 @@ exports.handler = async (event) => {
             isBase64Encoded: true,
             headers: {
                 'Content-Type': contentType,
-                'Cache-Control': TRANSFORMED_IMAGE_CACHE_TTL
+                'Cache-Control': TRANSFORMED_IMAGE_CACHE_TTL,
+            	'Server-Timing': timingLog
             }
         };
     else
@@ -165,7 +177,11 @@ exports.handler = async (event) => {
 };
 
 function sendError(statusCode, body, error) {
+    logError(body, error);
+    return { statusCode, body };
+}
+
+function logError(body, error) {
     console.log('APPLICATION ERROR', body);
     console.log(error);
-    return { statusCode, body };
 }
